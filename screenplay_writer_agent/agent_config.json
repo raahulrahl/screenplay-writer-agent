@@ -22,12 +22,6 @@
       "*"
     ]
   },
-  "storage": {
-    "type": "memory"
-  },
-  "scheduler": {
-    "type": "memory"
-  },
   "num_history_sessions": 5,
   "environment_variables": [
     {
