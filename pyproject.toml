@@ -7,7 +7,7 @@ readme = "README.md"
 keywords = ['python']
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "bindu==2026.1.12",
+    "bindu==2026.9.2.2",
     "crewai>=0.80.0",
     "crewai-tools>=0.1.0",
     "langchain>=0.1.0",
@@ -17,7 +17,7 @@ dependencies = [
     "pyperclip>=1.8.0",
     "rich>=13.0.0",
     "openai>=2.11.0",
-    "sqlalchemy>=2.0.45",
+    "sqlalchemy>=2.0.44",
     "mem0ai>=1.0.1",
     "ddgs>=9.9.3",
     "python-dotenv>=1.0.1",
