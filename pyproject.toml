@@ -2,12 +2,12 @@
 name = "screenplay-writer-agent"
 version = "0.0.1"
 description = "Screenplay Writer Agent is an AI-powered creative assistant that helps write, structure, and refine screenplays by generating scenes, dialogues, character arcs, and story flow in standard screenplay format."
-authors = [{ name = "Paras Chamoli", email = "paras25619@gmail.com" }]
+authors = [{ name = "Paras Chamoli", email = "paras@getbindu.com" }]
 readme = "README.md"
 keywords = ['python']
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "bindu==2026.9.2.2",
+    "bindu==2026.9.4",
     "crewai>=0.80.0",
     "crewai-tools>=0.1.0",
     "langchain>=0.1.0",

@@ -31,7 +31,7 @@ FROM raahulrahl/bindu-runtime-base:latest
 # OCI labels
 LABEL org.opencontainers.image.title="screenplay-writer-agent"
 LABEL org.opencontainers.image.description="Screenplay Writer Agent is an AI-powered creative assistant that helps write, structure, and refine screenplays by generating scenes, dialogues, character arcs, and story flow in standard screenplay format."
-LABEL org.opencontainers.image.authors="Paras Chamoli <paras25619@gmail.com>"
+LABEL org.opencontainers.image.authors="Paras Chamoli <paras@getbindu.com>"
 LABEL org.opencontainers.image.version="1.0.0"
 LABEL org.opencontainers.image.source="https://github.com/Paraschamoli/screenplay-writer-agent"
 LABEL org.opencontainers.image.licenses="MIT"
