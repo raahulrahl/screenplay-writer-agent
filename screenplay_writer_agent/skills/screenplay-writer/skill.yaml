@@ -5,314 +5,207 @@ author: paras@getbindu.com
 
 # Description
 description: |
-  Transforms creative ideas, conversations, or rough drafts into professionally formatted screenplays.
-  Extracts story elements, evaluates character development, writes scenes, formats scripts, and provides
-  quality scoring with actionable recommendations. Produces complete screenplay output and structured
-  character analysis.
+  Converts text input into industry-standard formatted screenplay text.
+  Uses a single LLM-powered agent to generate screenplay scenes with proper formatting
+  including scene headers, action lines, character names, and dialogue.
 
 # Tags and Modes
 tags:
   - screenplay
   - scriptwriting
-  - storytelling
-  - character-development
-  - scene-construction
-  - dialogue
   - formatting
-  - creative-writing
-  - film-production
+  - dialogue
+  - scene-writing
 
 input_modes:
   - text/plain
-  - application/json
 
 output_modes:
   - text/plain
-  - application/json
-  - text/markdown
 
 # Example Queries
 examples:
-  - "Transform this conversation into a courtroom drama scene"
-  - "Develop a protagonist for a cyberpunk story"
-  - "Write a 3-act structure for a romantic comedy"
-  - "Format this dialogue into proper screenplay format"
-  - "Create a scene breakdown for a horror movie"
+  - "Write an opening scene for a sci-fi thriller set in 2045"
+  - "Create a courtroom drama scene with two lawyers arguing"
+  - "Write a meet-cute scene for a romantic comedy"
+  - "Generate a detective scene where the protagonist discovers evidence"
+  - "Create an action scene in a dark alley"
 
 # Detailed Capabilities
 capabilities_detail:
   primary_capability:
     supported: true
-    description: "Transforms creative input into fully formatted screenplays with analysis and scoring"
+    description: "Generates formatted screenplay text from text prompts"
     features:
-      - "Extracts story elements from input text"
-      - "Develops characters and arcs with detailed profiles"
-      - "Writes and formats scenes in industry-standard screenplay styles"
-      - "Evaluates story structure, dialogue quality, emotional impact, and formatting accuracy"
-      - "Provides overall quality scoring and improvement suggestions"
-    limitations: "Requires clear input material; may not fully interpret highly abstract ideas"
+      - "Generates screenplay scenes with FADE IN/FADE OUT"
+      - "Formats scene headers (INT./EXT. LOCATION - TIME)"
+      - "Centers character names in all caps"
+      - "Indents dialogue properly"
+      - "Includes action descriptions and parentheticals"
+      - "Enforces industry-standard screenplay formatting"
+    limitations: "Text output only; no character analysis, quality scoring, or structured metadata"
 
   secondary_capability:
-    supported: true
-    description: "Provides structured character analysis and scene breakdown"
-    features:
-      - "Generates detailed character profiles including backstory, motivation, traits, and arcs"
-      - "Breaks down scenes with actions, dialogue, and transitions"
-      - "Assigns quality ratings for each story and character element"
-      - "Provides actionable recommendations for script improvement"
+    supported: false
+    description: "Not supported by code"
+    features: []
 
 # Requirements
 requirements:
   packages:
     - crewai>=0.80.0
-    - crewai-tools>=0.1.0
-    - langchain>=0.1.0
-    - langchain-openai>=0.0.5
-    - openai>=2.11.0
-    - bindu==2026.1.12
+    - bindu
     - python-dotenv>=1.0.1
-    - pyyaml>=6.0
   system: []
-  min_memory_mb: 512
+  min_memory_mb: 256
   external_services:
     - OpenRouter API (or OpenAI API)
-    - Mem0 API (optional, for memory features)
 
 # Performance Metrics
 performance:
-  avg_processing_time_ms: 10000
-  avg_time_per_agent_ms: 2000
-  max_concurrent_requests: 3
-  memory_per_request_mb: 512
+  avg_processing_time_ms: 15000
+  agents_in_crew: 1
+  max_concurrent_requests: 1
+  memory_per_request_mb: 256
   timeout_seconds: 180
-  max_input_length_chars: 5000
   scalability: vertical
 
 # Tool Restrictions
 allowed_tools:
-  - Read
-  - Analyze
   - Write
   - Format
-  - Evaluate
-  - Generate
 
 # Rich Documentation
 documentation:
   overview: |
-    Converts ideas, rough drafts, or conversations into fully formatted screenplays.
-    Uses a sequential crew of AI agents for story analysis, character development, scene writing,
-    formatting, and quality evaluation. Maintains character consistency, industry-standard formatting,
-    and emotionally engaging narratives.
+    Converts text prompts into formatted screenplay text.
+    Uses a single CrewAI agent with LLM (OpenAI or OpenRouter) to generate screenplay scenes.
+    Post-processes output with strict formatting enforcement to ensure industry-standard screenplay format.
 
   use_cases:
     when_to_use:
-      - Transform raw dialogue or conversations into screenplay scenes
-      - Develop characters and their story arcs
-      - Format scripts professionally (Hollywood, Fountain, or Final Draft)
-      - Analyze story structure and scene quality
-      - Generate actionable improvement suggestions
-      - Explore genre-specific adaptations of story ideas
+      - Generate screenplay scenes from text prompts
+      - Convert story ideas into formatted screenplay text
+      - Create dialogue-based scenes with proper formatting
+      - Generate screenplay snippets for specific scenarios
 
     when_not_to_use:
-      - Simple text editing or grammar correction
-      - Code generation or technical writing
-      - Academic paper writing or research
-      - Real-time collaboration or live editing
-      - Legal or highly specialized script formatting
+      - Character analysis or development
+      - Quality scoring or evaluation
+      - Structured JSON output with metadata
+      - Multi-format screenplay export
+      - Script revision or editing existing screenplays
 
   input_structure: |
-    Accepts screenplay writing requests in plain text or structured JSON:
+    Accepts plain text prompts describing the screenplay scene to generate.
+    Input is extracted from message list with role="user".
 
-    Example (JSON):
-    {
-      "query": "Write a romantic comedy meet-cute scene",
-      "input_material": "Raw dialogue or story idea",
-      "genre": "drama|comedy|thriller|sci-fi|romance|horror|action",
-      "tone": "serious|comedic|dramatic|noir|satirical",
-      "length": "short|medium|full",
-      "format_style": "hollywood|fountain|final_draft"
-    }
+    Example:
+    "Write an opening scene for a sci-fi thriller set in 2045 where artificial intelligence controls the global power grid."
 
     Constraints:
-    - Max input length: 5000 characters
-    - Max agents in crew: 5
+    - Input format: Plain text only
+    - No structured JSON parsing
     - Timeout: 180 seconds
     - Language: English
 
   output_format: |
-    Returns structured screenplay with story analysis and character profiles:
+    Returns plain text formatted screenplay following industry standards:
 
     Output Structure:
-    - STORY SUMMARY: Brief summary (< 30 words)
-    - SCENES: For each scene:
-      - SCENE_HEADER
-      - ACTION_LINES
-      - CHARACTER_DIALOGUE
-      - PARENTHETICALS
-      - TRANSITIONS
-    - CHARACTER_PROFILES: For each character:
-      - NAME
-      - ROLE
-      - BACKSTORY
-      - MOTIVATION
-      - PERSONALITY_TRAITS
-      - DIALOGUE_PATTERNS
-      - CHARACTER_ARC
-    - QUALITY_SCORE:
-      - STORY_STRUCTURE
-      - CHARACTER_DEVELOPMENT
-      - DIALOGUE_QUALITY
-      - FORMATTING
-      - EMOTIONAL_IMPACT
-      - OVERALL
-    - RECOMMENDATIONS: Improvement suggestions
+    - FADE IN:
+    - Scene headers: INT./EXT. LOCATION - TIME (all caps)
+    - Action descriptions (present tense, short lines)
+    - Character names (centered, all caps)
+    - Dialogue (indented under character names)
+    - Parentheticals (indented, in parentheses)
+    - FADE OUT.
+
+    No metadata, no analysis, no character profiles, no quality scores.
 
   error_handling:
-    - "Input too long: Returns error requesting maximum length"
-    - "API rate limits: Queues requests or suggests simpler queries"
-    - "Crew initialization failed: Returns initialization error with troubleshooting steps"
-    - "Formatting errors: Returns partial results with error explanation"
-    - "Timeout: Returns intermediate results with completion percentage"
-    - "Unclear input: Provides guidance on acceptable input formats"
+    - "Invalid messages format: Returns formatted error screenplay"
+    - "No user input: Returns default screenplay requesting story idea"
+    - "Crew initialization failed: Returns error screenplay"
+    - "LLM execution error: Returns error screenplay with error message"
+    - "All errors return valid screenplay format (FADE IN/FADE OUT)"
 
   examples:
-    - title: "Legal Debate to Courtroom Drama"
+    - title: "Sci-Fi Thriller Opening Scene"
       input:
-        query: "Transform this legal debate into a courtroom drama scene"
-        input_material: "Two lawyers arguing about evidence admissibility in a high-profile case..."
-        genre: "drama"
-        tone: "serious"
+        text: "Write an opening scene for a sci-fi thriller set in 2045 where artificial intelligence controls the global power grid. Include character dialogue and standard screenplay formatting."
       output:
-        success: true
-        screenplay:
-          formatted_script: "INT. COURTROOM - DAY\n\nJUDGE MARKS bangs the gavel..."
-          quality_score:
-            overall: 8.5
-        metadata:
-          processing_time_ms: 11500
-          agents_used: 5
+        text: "FADE IN:\n\nINT. CONTROL ROOM - NIGHT\n\nRows of monitors flicker with data. The hum of servers\nfills the air.\n\n                    DR. ALIYA NASH\n               (whispering)\n          We're in deep.\n\nDr. Aliya Nash, 38, sharp-eyed, taps frantically on a\nkeyboard.\n\nFADE OUT."
 
-    - title: "Cyberpunk Character Development"
+    - title: "Detective Character Arc Scene"
       input:
-        query: "Develop a protagonist for a cyberpunk detective story"
-        genre: "sci-fi"
-        tone: "noir"
+        text: "Develop a detailed character arc for a conflicted detective in a crime drama who slowly discovers he has been manipulating evidence unknowingly."
       output:
-        success: true
-        characters:
-          - name: "Detective Raine"
-            role: "protagonist"
-            backstory: "Former corporate security officer turned private eye..."
-            motivation: "Seeking redemption for past failures..."
-        metadata:
-          processing_time_ms: 8500
-          agents_used: 2
-
-    - title: "Romantic Comedy Scene"
-      input:
-        query: "Write a meet-cute scene for a romantic comedy"
-        genre: "comedy"
-        tone: "lighthearted"
-        length: "short"
-      output:
-        success: true
-        screenplay:
-          formatted_script: "EXT. COFFEE SHOP - DAY\n\nALEX spills coffee on SAM..."
-          quality_score:
-            overall: 8.2
-        metadata:
-          processing_time_ms: 9200
-          agents_used: 5
+        text: "FADE IN:\n\nINT. DETECTIVE'S OFFICE - DAY\n\nStacks of case files litter the desk. Sunlight filters\nthrough dusty blinds.\n\n                    DETECTIVE HARRIS\n          This doesn't add up. Why would she lie?\n\nDetective Harris sifts through evidence photos.\n\nFADE OUT."
 
   best_practices:
     for_developers:
-      - "Provide full context and input material for best results"
-      - "Specify genre and tone for targeted output"
-      - "Use quality scoring feedback to iterate screenplay improvements"
-      - "Implement caching for repeated queries to improve performance"
-      - "Monitor crew task completion to debug workflow issues"
+      - "Provide clear, specific scene descriptions in prompts"
+      - "Include genre and tone context in the prompt text"
+      - "Expect plain text output only, no structured data"
+      - "Handle async initialization (lazy loading on first request)"
 
     for_orchestrators:
-      - "Route screenplay writing requests to this agent"
-      - "Chain with summary agents for executive overviews of scripts"
-      - "Consider input complexity when setting timeout values"
-      - "Use confidence scores from quality evaluation for routing decisions"
-      - "Fallback to simpler writing tasks for basic formatting needs"
+      - "Route screenplay scene generation requests to this agent"
+      - "Do not expect character analysis or quality scoring"
+      - "Output is always plain text screenplay format"
+      - "Single agent crew with sequential processing"
 
   installation: |
     Required packages:
-    pip install crewai crewai-tools langchain langchain-openai bindu openai python-dotenv pyyaml
+    pip install crewai bindu python-dotenv
 
     Environment variables:
-    OPENROUTER_API_KEY=your_openrouter_api_key
-    OPENAI_API_KEY=your_openai_api_key  # Alternative
-    MEM0_API_KEY=your_mem0_api_key  # Optional
-    MODEL_NAME=openai/gpt-4o  # Optional
+    OPENROUTER_API_KEY=your_openrouter_api_key  # Required (or OPENAI_API_KEY)
+    OPENAI_API_KEY=your_openai_api_key  # Alternative to OpenRouter
+    MODEL_NAME=openai/gpt-4o  # Optional, defaults to openai/gpt-4o
 
   versioning:
     - version: "1.0.0"
       date: "2026-01-14"
-      changes: "Initial release with 5-agent crew for screenplay writing, character development, formatting, and scoring"
-    - version: "1.1.0"
-      status: "planned"
-      changes: "Add support for additional screenplay formats and genre-specific templates"
-    - version: "1.2.0"
-      status: "planned"
-      changes: "Enhanced character relationship mapping and conflict development"
+      changes: "Initial release with single-agent screenplay formatter"
 
 # Assessment fields for skill negotiation
 assessment:
   keywords:
     - screenplay
     - script
-    - writing
-    - dialogue
-    - character
-    - story
-    - formatting
     - scene
-    - plot
-    - development
-    - hollywood
+    - dialogue
+    - formatting
     - film
     - movie
     - scriptwriting
 
   specializations:
-    - domain: creative_writing
-      confidence_boost: 0.4
-    - domain: film_production
+    - domain: screenplay_formatting
+      confidence_boost: 0.5
+    - domain: scene_writing
       confidence_boost: 0.3
-    - domain: character_development
-      confidence_boost: 0.2
-    - domain: dialogue_writing
-      confidence_boost: 0.1
 
   anti_patterns:
-    - "simple editing"
+    - "character analysis"
+    - "quality scoring"
+    - "script evaluation"
+    - "editing existing scripts"
     - "grammar correction"
     - "code generation"
     - "technical writing"
     - "research paper"
-    - "mathematical calculation"
-    - "real-time events"
-    - "live updates"
 
   complexity_indicators:
     simple:
-      - "format dialogue"
-      - "basic scene"
-      - "simple conversion"
-      - "short scene"
-    medium:
-      - "develop character"
       - "write scene"
-      - "story structure"
-      - "genre adaptation"
+      - "format screenplay"
+      - "generate dialogue"
+    medium:
+      - "multi-scene screenplay"
+      - "genre-specific scene"
     complex:
-      - "complete screenplay"
-      - "character arcs"
-      - "plot development"
-      - "multi-scene script"
-      - "professional formatting"
+      - "full screenplay"
+      - "complex multi-character scenes"

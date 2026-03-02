@@ -16,8 +16,10 @@ import os
 import re
 import sys
 import traceback
+from logging import getLogger
 from pathlib import Path
 from textwrap import dedent
+from typing import Any, cast
 
 from bindu.penguin.bindufy import bindufy
 from crewai import Agent, Crew, Process, Task
@@ -35,24 +37,19 @@ ERROR_API_CONFIG = "API key configuration error"
 crew: Crew | None = None
 _initialized = False
 _init_lock = asyncio.Lock()
+_logger = getLogger(__name__)
 
 
 def load_config() -> dict:
     """Load agent configuration from project root."""
-    possible_paths = [
-        Path(__file__).parent.parent / "agent_config.json",
-        Path(__file__).parent / "agent_config.json",
-        Path.cwd() / "agent_config.json",
-    ]
+    config_path = Path(__file__).parent / "agent_config.json"
 
-    for config_path in possible_paths:
-        if config_path.exists():
-            try:
-                with open(config_path) as f:
-                    return json.load(f)
-            except Exception as e:
-                print(f"⚠️  Error reading {config_path}: {type(e).__name__}")
-                continue
+    if config_path.exists():
+        try:
+            with open(config_path) as f:
+                return cast(dict[str, Any], json.load(f))
+        except (OSError, json.JSONDecodeError) as exc:
+            _logger.warning("Failed to load config from %s", config_path, exc_info=exc)
 
     print("⚠️  No agent_config.json found, using default configuration")
     return {
@@ -67,7 +64,6 @@ def load_config() -> dict:
             "cors_origins": ["*"],
         },
         "environment_variables": [
-            {"key": "OPENAI_API_KEY", "description": "OpenAI API key for LLM calls", "required": False},
             {"key": "OPENROUTER_API_KEY", "description": "OpenRouter API key for LLM calls", "required": True},
             {"key": "MEM0_API_KEY", "description": "Mem0 API key for memory operations", "required": False},
         ],
@@ -143,22 +139,13 @@ async def initialize_crew() -> None:
     """Initialize the screenplay writing crew with proper model and agents."""
     global crew
 
-    openai_api_key = os.getenv("OPENAI_API_KEY")
     openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
     model_name = os.getenv("MODEL_NAME", "openai/gpt-4o")
 
     from crewai import LLM
 
     try:
-        if openai_api_key and not openrouter_api_key:
-            llm = LLM(
-                model="gpt-4o",
-                api_key=openai_api_key,
-                temperature=0.7,
-            )
-            print("✅ Using OpenAI GPT-4o directly")
-
-        elif openrouter_api_key:
+        if openrouter_api_key:
             llm = LLM(
                 model=model_name,
                 api_key=openrouter_api_key,
@@ -167,14 +154,10 @@ async def initialize_crew() -> None:
             )
             print(f"✅ Using OpenRouter via CrewAI LLM: {model_name}")
 
-            if not os.getenv("OPENAI_API_KEY"):
-                os.environ["OPENAI_API_KEY"] = openrouter_api_key
-
         else:
             error_msg = (
-                "No API key provided. Set OPENAI_API_KEY or OPENROUTER_API_KEY environment variable.\n"
+                "No API key provided. Set OPENROUTER_API_KEY environment variable.\n"
                 "For OpenRouter: https://openrouter.ai/keys\n"
-                "For OpenAI: https://platform.openai.com/api-keys"
             )
             raise ValueError(error_msg)  # noqa: TRY301
 
@@ -415,7 +398,7 @@ async def run_crew(input_text: str) -> str:
         print(f"🎬 Running crew with input: {input_text}")
 
         # Run the crew
-        result = crew.kickoff(inputs={"input": input_text})
+        result = await crew.kickoff_async(inputs={"input": input_text})
 
         # Get the text - CrewAI returns the result directly
         screenplay = str(result)
@@ -490,12 +473,6 @@ def main() -> None:
     """Run the main entry point for the Screenplay Writing Agent."""
     parser = argparse.ArgumentParser(description="Bindu Screenplay Writing Agent")
     parser.add_argument(
-        "--openai-api-key",
-        type=str,
-        default=os.getenv("OPENAI_API_KEY"),
-        help="OpenAI API key",
-    )
-    parser.add_argument(
         "--openrouter-api-key",
         type=str,
         default=os.getenv("OPENROUTER_API_KEY"),
@@ -510,12 +487,8 @@ def main() -> None:
     args = parser.parse_args()
 
     # Set environment variables
-    if args.openai_api_key:
-        os.environ["OPENAI_API_KEY"] = args.openai_api_key
     if args.openrouter_api_key:
         os.environ["OPENROUTER_API_KEY"] = args.openrouter_api_key
-        if not os.getenv("OPENAI_API_KEY"):
-            os.environ["OPENAI_API_KEY"] = args.openrouter_api_key
     if args.model:
         os.environ["MODEL_NAME"] = args.model
 
@@ -526,6 +499,7 @@ def main() -> None:
 
     try:
         print("🚀 Starting server...")
+        os.environ["CREWAI_TRACING_ENABLED"] = "false"
         bindufy(config, handler)
     except KeyboardInterrupt:
         print("\n🛑 Stopped")
