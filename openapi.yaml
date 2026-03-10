@@ -1,0 +1,1631 @@
+openapi: 3.1.0
+info:
+  title: Screenplay Writer Agent API
+  description: |
+    An AI-powered screenplay writing agent that converts text prompts into industry-standard 
+    formatted screenplay text. Generates screenplay scenes with proper formatting including 
+    scene headers, action lines, character names, and dialogue following Hollywood screenplay 
+    conventions.
+
+    Implements the A2A Protocol with JSON-RPC 2.0 methods for agent communication, task
+    management, context management, DID resolution, and payment processing.
+
+    ## Why Task-First Architecture?
+
+    This API follows Bindu's **Task-First Agent Pattern** - every interaction creates a trackable task.
+    This isn't just about async operations; it enables:
+
+    **Single-Agent Execution**
+    - Each screenplay generation request becomes a task with clear state and results
+    - Track progress from submission through completion
+    - Orchestrators can chain screenplay tasks with other creative workflows
+
+    **Async Processing**
+    - Screenplay generation runs asynchronously (typically 10-20 seconds)
+    - Poll for completion using task IDs
+    - Multiple screenplay requests can be processed independently
+
+    **Context Continuity**
+    - Multiple tasks share the same `contextId` for conversation history
+    - Maintain context across screenplay refinement requests
+    - Reference previous screenplay outputs using `referenceTaskIds`
+
+    This aligns with the A2A Protocol's "Task-only Agent" pattern where **all responses are Task objects**,
+    enabling orchestration at scale.
+
+    **Learn more:** [Task-First Pattern Documentation](https://docs.getbindu.com/bindu/concepts/task-first-pattern)
+
+    ## Getting Started
+
+    ### Authentication
+    All JSON-RPC requests require a Bearer token in the Authorization header:
+    ```
+    Authorization: Bearer YOUR_TOKEN_HERE
+    ```
+
+    ### Basic Workflow (Async Task Pattern)
+
+    This API uses an **asynchronous task pattern**. When you send a message, you receive a task ID
+    and must poll for completion:
+
+    **Step 1: Send a message** (creates a task)
+    ```bash
+    curl -X POST https://screenplay-writer-agent.bindu-agents.bindus.directory \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Bearer YOUR_TOKEN" \
+      -d '{
+        "jsonrpc": "2.0",
+        "method": "message/send",
+        "params": {
+          "message": {
+            "role": "user",
+            "parts": [{"kind": "text", "text": "Write an opening scene for a sci-fi thriller set in 2045"}],
+            "kind": "message",
+            "messageId": "a92fbc10-2471-41e8-b187-d93cb1e80001",
+            "contextId": "a92fbc10-2471-41e8-b187-d93cb1e80002",
+            "taskId": "a92fbc10-2471-41e8-b187-d93cb1e80003"
+          }
+        },
+        "id": "a92fbc10-2471-41e8-b187-d93cb1e80003"
+      }'
+    ```
+    Response: Task with `"state": "submitted"`
+
+    **Step 2: Poll for task status** (check if working/completed)
+    ```bash
+    curl -X POST https://screenplay-writer-agent.bindu-agents.bindus.directory \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Bearer YOUR_TOKEN" \
+      -d '{
+        "jsonrpc": "2.0",
+        "method": "tasks/get",
+        "params": {"taskId": "a92fbc10-2471-41e8-b187-d93cb1e80003"},
+        "id": "a92fbc10-2471-41e8-b187-d93cb1e80004"
+      }'
+    ```
+    Response: Task with `"state": "working"` or `"state": "completed"`
+
+    **Step 3: Get results** (when state is "completed")
+    The completed task includes:
+    - `history`: Full conversation history (user message + assistant response)
+    - `artifacts`: Formatted screenplay text in plain text format
+
+    ### Available JSON-RPC Methods
+
+    - **message/send** - Send a message and create a new screenplay generation task
+    - **tasks/get** - Get task details by ID (use for polling)
+    - **tasks/list** - List all tasks with pagination
+    - **tasks/cancel** - Cancel a running task
+    - **tasks/feedback** - Submit feedback for a completed task
+    - **contexts/list** - List conversation contexts
+    - **contexts/clear** - Clear a conversation context
+
+    ### Task States
+
+    - `submitted` - Task created, not yet started
+    - `working` - Task is being processed by the screenplay agent
+    - `completed` - Task finished successfully (check artifacts for screenplay)
+    - `failed` - Task encountered an error
+    - `canceled` - Task was canceled by user
+    - `input-required` - Task needs additional input from user
+
+    ### Example Use Cases
+
+    - "Write an opening scene for a sci-fi thriller set in 2045 where artificial intelligence controls the global power grid"
+    - "Create a courtroom drama scene with two lawyers arguing"
+    - "Generate a romantic comedy meet-cute scene in a coffee shop"
+    - "Write a detective scene where the protagonist discovers evidence"
+    - "Create an action scene in a dark alley with dialogue"
+  version: 1.0.0
+servers:
+  - url: https://screenplay-writer-agent.bindu-agents.bindus.directory
+    description: Production server
+security:
+  - bearerAuth: []
+paths:
+  /:
+    post:
+      summary: JSON-RPC 2.0 endpoint
+      description: |
+        All JSON-RPC methods are sent as POST requests to this endpoint.
+
+        **Available Methods:**
+        - `message/send` - Send a message and create a new screenplay generation task
+        - `tasks/get` - Get task details by ID (use for polling)
+        - `tasks/list` - List all tasks
+        - `tasks/cancel` - Cancel a running task
+        - `tasks/feedback` - Submit feedback for a task
+        - `contexts/list` - List conversation contexts
+        - `contexts/clear` - Clear a conversation context
+
+        **Async Task Pattern:**
+        1. Call `message/send` to create a task (returns with state "submitted")
+        2. Poll `tasks/get` until state changes to "completed" (or "failed")
+        3. Extract formatted screenplay from the `artifacts` array in the completed task
+      operationId: jsonRpc
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JsonRpcRequest'
+            examples:
+              messageSend:
+                summary: Send a message (Step 1 - Create Task)
+                description: Creates a new screenplay generation task
+                value:
+                  jsonrpc: "2.0"
+                  method: "message/send"
+                  params:
+                    message:
+                      role: "user"
+                      parts:
+                        - kind: "text"
+                          text: "Write an opening scene for a sci-fi thriller set in 2045 where artificial intelligence controls the global power grid. Include character dialogue and standard screenplay formatting."
+                      kind: "message"
+                      messageId: "a92fbc10-2471-41e8-b187-d93cb1e80001"
+                      contextId: "a92fbc10-2471-41e8-b187-d93cb1e80002"
+                      taskId: "a92fbc10-2471-41e8-b187-d93cb1e80003"
+                    skillId: "screenplay-writer-v1"
+                    configuration:
+                      acceptedOutputModes:
+                        - "application/json"
+                  id: "a92fbc10-2471-41e8-b187-d93cb1e80003"
+              tasksGet:
+                summary: Get task status (Step 2 - Poll for Completion)
+                description: Check if the task is completed and retrieve screenplay
+                value:
+                  jsonrpc: "2.0"
+                  method: "tasks/get"
+                  params:
+                    taskId: "a92fbc10-2471-41e8-b187-d93cb1e80003"
+                  id: "a92fbc10-2471-41e8-b187-d93cb1e80004"
+              tasksList:
+                summary: List all tasks
+                description: Get a paginated list of all screenplay tasks
+                value:
+                  jsonrpc: "2.0"
+                  method: "tasks/list"
+                  params:
+                    limit: 10
+                    offset: 0
+                  id: "a92fbc10-2471-41e8-b187-d93cb1e80005"
+              tasksCancel:
+                summary: Cancel a task
+                description: Cancel a running or submitted screenplay task
+                value:
+                  jsonrpc: "2.0"
+                  method: "tasks/cancel"
+                  params:
+                    taskId: "a92fbc10-2471-41e8-b187-d93cb1e80003"
+                  id: "a92fbc10-2471-41e8-b187-d93cb1e80006"
+      responses:
+        '200':
+          description: Successful JSON-RPC response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JsonRpcResponse'
+              examples:
+                messageSendSubmitted:
+                  summary: Task created (state = submitted)
+                  description: Initial response after sending a screenplay request
+                  value:
+                    jsonrpc: "2.0"
+                    id: "a92fbc10-2471-41e8-b187-d93cb1e80003"
+                    result:
+                      id: "a92fbc10-2471-41e8-b187-d93cb1e80003"
+                      context_id: "a92fbc10-2471-41e8-b187-d93cb1e80002"
+                      kind: "task"
+                      status:
+                        state: "submitted"
+                        timestamp: "2026-02-27T09:17:57.499653+00:00"
+                      history:
+                        - kind: "message"
+                          role: "user"
+                          parts:
+                            - kind: "text"
+                              text: "Write an opening scene for a sci-fi thriller set in 2045 where artificial intelligence controls the global power grid. Include character dialogue and standard screenplay formatting."
+                          task_id: "a92fbc10-2471-41e8-b187-d93cb1e80003"
+                          context_id: "a92fbc10-2471-41e8-b187-d93cb1e80002"
+                          message_id: "a92fbc10-2471-41e8-b187-d93cb1e80001"
+                      artifacts: []
+                      metadata: {}
+                tasksGetWorking:
+                  summary: Task in progress (state = working)
+                  description: Response when polling a task that is still generating screenplay
+                  value:
+                    jsonrpc: "2.0"
+                    id: "a92fbc10-2471-41e8-b187-d93cb1e80004"
+                    result:
+                      id: "a92fbc10-2471-41e8-b187-d93cb1e80003"
+                      context_id: "a92fbc10-2471-41e8-b187-d93cb1e80002"
+                      kind: "task"
+                      status:
+                        state: "working"
+                        timestamp: "2026-02-27T09:18:05.123456+00:00"
+                      history:
+                        - kind: "message"
+                          role: "user"
+                          parts:
+                            - kind: "text"
+                              text: "Write an opening scene for a sci-fi thriller set in 2045 where artificial intelligence controls the global power grid. Include character dialogue and standard screenplay formatting."
+                          task_id: "a92fbc10-2471-41e8-b187-d93cb1e80003"
+                          context_id: "a92fbc10-2471-41e8-b187-d93cb1e80002"
+                          message_id: "a92fbc10-2471-41e8-b187-d93cb1e80001"
+                      artifacts: []
+                      metadata: {}
+                tasksGetCompleted:
+                  summary: Task completed (state = completed)
+                  description: Final response with formatted screenplay in artifacts array
+                  value:
+                    jsonrpc: "2.0"
+                    id: "a92fbc10-2471-41e8-b187-d93cb1e80004"
+                    result:
+                      id: "a92fbc10-2471-41e8-b187-d93cb1e80003"
+                      context_id: "a92fbc10-2471-41e8-b187-d93cb1e80002"
+                      kind: "task"
+                      status:
+                        state: "completed"
+                        timestamp: "2026-02-27T09:18:21.156729+00:00"
+                      history:
+                        - kind: "message"
+                          role: "user"
+                          parts:
+                            - kind: "text"
+                              text: "Write an opening scene for a sci-fi thriller set in 2045 where artificial intelligence controls the global power grid. Include character dialogue and standard screenplay formatting."
+                          task_id: "a92fbc10-2471-41e8-b187-d93cb1e80003"
+                          context_id: "a92fbc10-2471-41e8-b187-d93cb1e80002"
+                          message_id: "a92fbc10-2471-41e8-b187-d93cb1e80001"
+                        - kind: "message"
+                          role: "assistant"
+                          parts:
+                            - kind: "text"
+                              text: "FADE IN:\n\nINT. CONTROL ROOM - NIGHT\n\nRows of monitors flicker with data. The hum of servers\nfills the air.\n\n                    DR. ALIYA NASH\n               (whispering)\n          We're in deep.\n\nDr. Aliya Nash, 38, sharp-eyed, taps frantically on a\nkeyboard.\n\nINT. GLOBAL POWER GRID - NIGHT\n\nScreens display a world map, pulsing with energy flows.\n\nSYSTEM VOICE (V.O.)\n\nUnauthorized access detected.\n\nRed lights flash. Alarms blare.\n\nINT. CONTROL ROOM - NIGHT\n\nAliya's fingers fly over the keys. Sweat beads on her\nforehead.\n\n                    DR. ALIYA NASH\n          Override protocol\n\nFADE OUT."
+                          task_id: "a92fbc10-2471-41e8-b187-d93cb1e80003"
+                          context_id: "a92fbc10-2471-41e8-b187-d93cb1e80002"
+                          message_id: "bdef7936-db05-46df-ae7f-802091fd850b"
+                      artifacts:
+                        - name: "result"
+                          parts:
+                            - kind: "text"
+                              text: "FADE IN:\n\nINT. CONTROL ROOM - NIGHT\n\nRows of monitors flicker with data. The hum of servers\nfills the air.\n\n                    DR. ALIYA NASH\n               (whispering)\n          We're in deep.\n\nDr. Aliya Nash, 38, sharp-eyed, taps frantically on a\nkeyboard.\n\nINT. GLOBAL POWER GRID - NIGHT\n\nScreens display a world map, pulsing with energy flows.\n\nSYSTEM VOICE (V.O.)\n\nUnauthorized access detected.\n\nRed lights flash. Alarms blare.\n\nINT. CONTROL ROOM - NIGHT\n\nAliya's fingers fly over the keys. Sweat beads on her\nforehead.\n\n                    DR. ALIYA NASH\n          Override protocol\n\nFADE OUT."
+                              metadata:
+                                did.message.signature: "269nPLLVcN3KzmDD3bFMefxMtrJ2wBQHX9ZDDWNmNtEJm4vYab56Z8tLjjgszdZmuZM8wyeGUpM7pqx7cSniHpeW"
+                          artifact_id: "34071e02-bede-41ec-9454-f536e826efa2"
+                      metadata: {}
+        '400':
+          description: Invalid JSON-RPC request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JsonRpcResponse'
+              example:
+                jsonrpc: "2.0"
+                id: "a92fbc10-2471-41e8-b187-d93cb1e80003"
+                error:
+                  code: -32600
+                  message: "Invalid Request"
+        '401':
+          description: Unauthorized - missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "Unauthorized"
+      security:
+        - bearerAuth: []
+      x-code-samples:
+        - lang: 'curl'
+          label: 'Step 1: Send Message'
+          source: |
+            curl --location 'https://screenplay-writer-agent.bindu-agents.bindus.directory' \
+            --header 'Content-Type: application/json' \
+            --header 'Authorization: Bearer YOUR_TOKEN_HERE' \
+            --data '{
+              "jsonrpc": "2.0",
+              "method": "message/send",
+              "params": {
+                "message": {
+                  "role": "user",
+                  "parts": [
+                    {
+                      "kind": "text",
+                      "text": "Write an opening scene for a sci-fi thriller set in 2045 where artificial intelligence controls the global power grid. Include character dialogue and standard screenplay formatting."
+                    }
+                  ],
+                  "kind": "message",
+                  "messageId": "a92fbc10-2471-41e8-b187-d93cb1e80001",
+                  "contextId": "a92fbc10-2471-41e8-b187-d93cb1e80002",
+                  "taskId": "a92fbc10-2471-41e8-b187-d93cb1e80003"
+                },
+                "skillId": "screenplay-writer-v1",
+                "configuration": {
+                  "acceptedOutputModes": [
+                    "application/json"
+                  ]
+                }
+              },
+              "id": "a92fbc10-2471-41e8-b187-d93cb1e80003"
+            }'
+  '/.well-known/agent.json':
+    get:
+      summary: Get Agent Card
+      description: Returns the agent's metadata card following the A2A Protocol specification.
+      operationId: getAgentCard
+      responses:
+        '200':
+          description: Agent card retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentCard'
+      security: []
+  '/did/resolve':
+    post:
+      summary: Resolve DID
+      description: Resolves a Decentralized Identifier (DID) to its W3C-compliant DID document.
+      operationId: resolveDid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - did
+              properties:
+                did:
+                  type: string
+                  description: The DID to resolve
+                  example: 'did:bindu:screenplay-writer-agent:abc123'
+      responses:
+        '200':
+          description: DID document resolved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DidDocument'
+      security: []
+  '/agent/skills':
+    get:
+      summary: List Agent Skills
+      description: Returns a list of all skills supported by the agent.
+      operationId: listSkills
+      responses:
+        '200':
+          description: List of skills
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  skills:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SkillSummary'
+                  total:
+                    type: integer
+                    example: 1
+      security: []
+  '/agent/skills/{skillId}':
+    get:
+      summary: Get Skill Details
+      description: Returns detailed information about a specific skill.
+      operationId: getSkillDetails
+      parameters:
+        - name: skillId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The skill identifier (e.g., 'screenplay-writer-v1')
+      responses:
+        '200':
+          description: Skill details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillDetail'
+        '404':
+          description: Skill not found
+      security: []
+  '/agent/skills/{skillId}/documentation':
+    get:
+      summary: Get Skill Documentation
+      description: Returns human-readable documentation for a specific skill in Markdown or YAML format.
+      operationId: getSkillDocumentation
+      parameters:
+        - name: skillId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The skill identifier
+      responses:
+        '200':
+          description: Skill documentation
+          content:
+            application/yaml:
+              schema:
+                type: string
+                description: YAML formatted documentation
+            text/markdown:
+              schema:
+                type: string
+                description: Markdown formatted documentation
+        '404':
+          description: Skill not found
+      security: []
+  '/agent/negotiation':
+    post:
+      summary: Assess Task Capability
+      description: Assess agent's capability to handle a screenplay writing task for negotiation.
+      operationId: assessTaskCapability
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NegotiationRequest'
+      responses:
+        '200':
+          description: Capability assessment result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NegotiationResponse'
+      security: []
+  '/api/start-payment-session':
+    post:
+      summary: Start Payment Session
+      description: Initiates a payment session for x402 protocol.
+      operationId: startPaymentSession
+      responses:
+        '200':
+          description: Payment session started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentSession'
+      security:
+        - bearerAuth: []
+  '/api/payment-status/{sessionId}':
+    get:
+      summary: Get Payment Status
+      description: Retrieves the status of a payment session.
+      operationId: getPaymentStatus
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The payment session identifier
+        - name: wait
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: Set to 'true' to wait for completion (up to 5 minutes)
+      responses:
+        '200':
+          description: Payment status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentStatus'
+      security:
+        - bearerAuth: []
+  '/payment-capture':
+    get:
+      summary: Payment Capture Page
+      description: Browser page to capture payment. Shows paywall UI and captures payment token.
+      operationId: paymentCapture
+      parameters:
+        - name: session_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: The payment session ID
+      responses:
+        '200':
+          description: Payment capture page (HTML)
+          content:
+            text/html:
+              schema:
+                type: string
+      security: []
+  /health:
+    get:
+      summary: Health Check
+      description: Health check endpoint for service monitoring.
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service health information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+      security: []
+  /metrics:
+    get:
+      summary: Prometheus Metrics
+      description: Prometheus metrics endpoint for scraping.
+      operationId: getMetrics
+      responses:
+        '200':
+          description: Metrics in Prometheus text format
+          content:
+            text/plain:
+              schema:
+                type: string
+      security: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Bearer token authentication. Include `Bearer <token>` in the Authorization header.
+  schemas:
+    # ----- JSON-RPC -----
+    JsonRpcRequest:
+      type: object
+      required:
+        - jsonrpc
+        - method
+        - id
+      properties:
+        jsonrpc:
+          type: string
+          enum: ['2.0']
+        method:
+          type: string
+          enum:
+            - message/send
+            - tasks/get
+            - tasks/list
+            - tasks/cancel
+            - tasks/feedback
+            - contexts/list
+            - contexts/clear
+        params:
+          oneOf:
+            - $ref: '#/components/schemas/MessageSendParams'
+            - $ref: '#/components/schemas/TasksGetParams'
+            - $ref: '#/components/schemas/TasksListParams'
+            - $ref: '#/components/schemas/TasksCancelParams'
+            - $ref: '#/components/schemas/TasksFeedbackParams'
+            - $ref: '#/components/schemas/ContextsListParams'
+            - $ref: '#/components/schemas/ContextsClearParams'
+          discriminator:
+            propertyName: method
+            mapping:
+              message/send: '#/components/schemas/MessageSendParams'
+              tasks/get: '#/components/schemas/TasksGetParams'
+              tasks/list: '#/components/schemas/TasksListParams'
+              tasks/cancel: '#/components/schemas/TasksCancelParams'
+              tasks/feedback: '#/components/schemas/TasksFeedbackParams'
+              contexts/list: '#/components/schemas/ContextsListParams'
+              contexts/clear: '#/components/schemas/ContextsClearParams'
+        id:
+          type: string
+          format: uuid
+          example: 'a92fbc10-2471-41e8-b187-d93cb1e80003'
+    JsonRpcResponse:
+      type: object
+      properties:
+        jsonrpc:
+          type: string
+          enum: ['2.0']
+        id:
+          type: string
+          format: uuid
+        result:
+          oneOf:
+            - $ref: '#/components/schemas/MessageSendResult'
+            - $ref: '#/components/schemas/TasksGetResult'
+            - $ref: '#/components/schemas/TasksListResult'
+            - $ref: '#/components/schemas/TasksCancelResult'
+            - $ref: '#/components/schemas/TasksFeedbackResult'
+            - $ref: '#/components/schemas/ContextsListResult'
+            - $ref: '#/components/schemas/ContextsClearResult'
+        error:
+          type: object
+          properties:
+            code:
+              type: integer
+            message:
+              type: string
+      oneOf:
+        - required: [result]
+        - required: [error]
+    # MessageSend
+    MessageSendParams:
+      type: object
+      description: |
+        Parameters for sending a screenplay writing request to create a new task.
+
+        **This creates an asynchronous task** - the response will contain a task ID with state "submitted".
+        You must poll the task using `tasks/get` to check when screenplay generation completes.
+      required:
+        - message
+      properties:
+        message:
+          $ref: '#/components/schemas/UserMessage'
+        configuration:
+          type: object
+          description: Configuration options for the task execution
+          properties:
+            acceptedOutputModes:
+              type: array
+              description: Preferred output formats (screenplay is always text/plain)
+              items:
+                type: string
+                enum: ['application/json', 'text/plain']
+        skillId:
+          type: string
+          description: Optional skill ID to invoke (e.g., "screenplay-writer-v1")
+    UserMessage:
+      type: object
+      description: |
+        A message from the user to the screenplay writing agent.
+
+        **Important:** All IDs (messageId, contextId, taskId) should be UUIDs generated by the client.
+        Use the same contextId for related messages in a conversation.
+      required:
+        - role
+        - parts
+        - kind
+        - messageId
+        - contextId
+        - taskId
+      properties:
+        role:
+          type: string
+          enum: ['user']
+          description: Must be "user" for messages sent to the agent
+        parts:
+          type: array
+          description: Array of message parts (currently only text is supported)
+          items:
+            $ref: '#/components/schemas/MessagePart'
+        kind:
+          type: string
+          enum: ['message']
+          description: Must be "message"
+        messageId:
+          type: string
+          format: uuid
+          description: Unique identifier for this message (client-generated UUID)
+        contextId:
+          type: string
+          format: uuid
+          description: Conversation context ID - use the same ID for related messages
+        taskId:
+          type: string
+          format: uuid
+          description: Task ID for this request (client-generated UUID) - use this to poll for results
+        referenceTaskIds:
+          type: array
+          description: |
+            Optional array of task IDs that this task depends on or references.
+
+            **Use Cases:**
+            - **Task Chaining**: Reference a completed screenplay to refine or continue it
+            - **Context Sharing**: Link related screenplay tasks in a workflow
+            - **Iterative Refinement**: Reference previous screenplay output for revisions
+
+            **Example Workflow:**
+            ```
+            Task1: "Write opening scene" → completes with screenplay
+            Task2: "Make it shorter" (referenceTaskIds: [Task1]) → uses Task1 screenplay
+            Task3: "Add more dialogue" (referenceTaskIds: [Task2]) → refines Task2 output
+            ```
+
+            The agent can access results from referenced tasks to provide better context.
+          items:
+            type: string
+            format: uuid
+        metadata:
+          type: object
+          description: Additional metadata, e.g., for payment
+    MessagePart:
+      type: object
+      required:
+        - kind
+      properties:
+        kind:
+          type: string
+          enum: ['text']
+        text:
+          type: string
+    MessageSendResult:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        context_id:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum: ['task']
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/HistoryMessage'
+        artifacts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Artifact'
+        metadata:
+          type: object
+    TaskStatus:
+      type: object
+      description: |
+        Current status of a screenplay generation task.
+
+        **Task Lifecycle:**
+
+        **Non-Terminal States (Task Open, Mutable):**
+        1. `submitted` - Task created, queued for processing
+        2. `working` - Task is being processed by screenplay agent
+        3. `input-required` - Task needs additional input from user
+        4. `auth-required` - Task needs authentication/authorization
+
+        **Terminal States (Task Immutable, Final):**
+        - `completed` - Task finished successfully (check artifacts for screenplay)
+        - `failed` - Task encountered an error
+        - `canceled` - Task was canceled by user
+        - `rejected` - Task was rejected (e.g., capability mismatch)
+
+        **Important:** Once a task reaches a terminal state, it becomes immutable and cannot be restarted.
+        To refine or continue work, create a new task with `referenceTaskIds` pointing to the completed task.
+      required:
+        - state
+        - timestamp
+      properties:
+        state:
+          type: string
+          enum: [submitted, working, input-required, auth-required, completed, failed, canceled, rejected]
+          description: |
+            Current state of the task:
+
+            **Non-Terminal (poll again):**
+            - **submitted**: Task created, not yet started
+            - **working**: Task is being processed by screenplay agent
+            - **input-required**: Task needs more information from user
+            - **auth-required**: Task needs authentication/authorization
+
+            **Terminal (final state):**
+            - **completed**: Task finished - formatted screenplay is in artifacts array
+            - **failed**: Task encountered an error (check history for details)
+            - **canceled**: Task was canceled by user
+            - **rejected**: Task was rejected (e.g., agent cannot handle this request)
+        timestamp:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp of when this state was reached
+    HistoryMessage:
+      type: object
+      properties:
+        kind:
+          type: string
+        role:
+          type: string
+        parts:
+          type: array
+          items:
+            $ref: '#/components/schemas/MessagePart'
+        task_id:
+          type: string
+          format: uuid
+        context_id:
+          type: string
+          format: uuid
+        message_id:
+          type: string
+          format: uuid
+        reference_task_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+    Artifact:
+      type: object
+      description: |
+        A structured output artifact from a completed screenplay task.
+
+        The artifact with `name: "result"` contains the formatted screenplay text.
+      properties:
+        name:
+          type: string
+          description: Artifact name (typically "result" for the main screenplay output)
+        parts:
+          type: array
+          description: Content parts of the artifact (formatted screenplay text)
+          items:
+            $ref: '#/components/schemas/MessagePart'
+        artifact_id:
+          type: string
+          format: uuid
+          description: Unique identifier for this artifact
+        metadata:
+          type: object
+          description: Additional artifact metadata (may include signatures)
+    # TasksGet
+    TasksGetParams:
+      type: object
+      description: |
+        Parameters for retrieving task details.
+
+        **Use this method to poll for task completion** after calling `message/send`.
+        Poll every 3-5 seconds until the state is "completed", "failed", or "canceled".
+      required:
+        - taskId
+      properties:
+        taskId:
+          type: string
+          format: uuid
+          description: The task ID returned from message/send
+    TasksGetResult:
+      $ref: '#/components/schemas/Task'
+    Task:
+      type: object
+      description: |
+        A task represents an asynchronous screenplay generation operation.
+
+        **When state is "completed":**
+        - `history` contains the full conversation (user message + assistant response with screenplay)
+        - `artifacts` contains the formatted screenplay text (check the "result" artifact)
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique task identifier
+        context_id:
+          type: string
+          format: uuid
+          description: Conversation context this task belongs to
+        kind:
+          type: string
+          enum: ['task']
+          description: Always "task"
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+        history:
+          type: array
+          description: Conversation history (user messages and assistant responses)
+          items:
+            $ref: '#/components/schemas/HistoryMessage'
+        artifacts:
+          type: array
+          description: |
+            Formatted screenplay when task is completed.
+            Look for the artifact with name "result" for the screenplay text.
+          items:
+            $ref: '#/components/schemas/Artifact'
+        metadata:
+          type: object
+          description: Additional task metadata
+    # TasksList
+    TasksListParams:
+      type: object
+      properties:
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+        offset:
+          type: integer
+          minimum: 0
+    TasksListResult:
+      type: array
+      items:
+        $ref: '#/components/schemas/Task'
+    # TasksCancel
+    TasksCancelParams:
+      type: object
+      required:
+        - taskId
+      properties:
+        taskId:
+          type: string
+          format: uuid
+    TasksCancelResult:
+      $ref: '#/components/schemas/Task'
+    # TasksFeedback
+    TasksFeedbackParams:
+      type: object
+      required:
+        - taskId
+        - feedback
+      properties:
+        taskId:
+          type: string
+          format: uuid
+        feedback:
+          type: string
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        metadata:
+          type: object
+    TasksFeedbackResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+    # ContextsList
+    ContextsListParams:
+      type: object
+      properties:
+        length:
+          type: integer
+          minimum: 1
+          maximum: 100
+    ContextsListResult:
+      type: array
+      items:
+        type: object
+        description: Conversation context object
+    # ContextsClear
+    ContextsClearParams:
+      type: object
+      required:
+        - contextId
+      properties:
+        contextId:
+          type: string
+          format: uuid
+    ContextsClearResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+
+    # ----- Agent Card -----
+    AgentCard:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        url:
+          type: string
+        version:
+          type: string
+        protocolVersion:
+          type: string
+        skills:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              documentationPath:
+                type: string
+        capabilities:
+          type: object
+          properties:
+            extensions:
+              type: array
+              items:
+                type: object
+            pushNotifications:
+              type: boolean
+            streaming:
+              type: boolean
+        kind:
+          type: string
+        numHistorySessions:
+          type: integer
+        extraData:
+          type: object
+        debugMode:
+          type: boolean
+        debugLevel:
+          type: integer
+        monitoring:
+          type: boolean
+        telemetry:
+          type: boolean
+        agentTrust:
+          type: string
+        defaultInputModes:
+          type: array
+          items:
+            type: string
+        defaultOutputModes:
+          type: array
+          items:
+            type: string
+      example:
+        id: 'screenplay-writer-agent-id'
+        name: 'screenplay-writer-agent'
+        description: 'AI-powered screenplay writing agent that converts text prompts into industry-standard formatted screenplay text with proper scene headers, character names, dialogue, and action lines.'
+        url: 'http://localhost'
+        version: '1.0.0'
+        protocolVersion: '1.0.0'
+        skills:
+          - id: 'screenplay-writer-v1'
+            name: 'screenplay-writer'
+            documentationPath: 'http://localhost/agent/skills/screenplay-writer-v1'
+        capabilities:
+          extensions: []
+          pushNotifications: false
+          streaming: false
+        kind: 'agent'
+        numHistorySessions: 5
+        extraData:
+          created: 1771960617
+          server_info: 'bindu Agent Server'
+        debugMode: true
+        debugLevel: 2
+        monitoring: false
+        telemetry: true
+        agentTrust: 'low'
+        defaultInputModes: ['text/plain']
+        defaultOutputModes: ['text/plain']
+
+    # ----- DID Document -----
+    DidDocument:
+      type: object
+      properties:
+        '@context':
+          type: array
+          items:
+            type: string
+        id:
+          type: string
+        created:
+          type: string
+          format: date-time
+        authentication:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              type:
+                type: string
+              controller:
+                type: string
+              publicKeyBase58:
+                type: string
+      example:
+        '@context':
+          - 'https://www.w3.org/ns/did/v1'
+          - 'https://getbindu.com/ns/v1'
+        id: 'did:bindu:screenplay-writer-agent:abc123'
+        created: '2026-02-24T19:15:13.581497+00:00'
+        authentication:
+          - id: 'did:bindu:screenplay-writer-agent:abc123#key-1'
+            type: 'Ed25519VerificationKey2020'
+            controller: 'did:bindu:screenplay-writer-agent:abc123'
+            publicKeyBase58: 'G5GArDaptfioimLdNbMgCKCvxndXhpcS6VUkRFEds12B'
+
+    # ----- Skills -----
+    SkillSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        version:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        input_modes:
+          type: array
+          items:
+            type: string
+        output_modes:
+          type: array
+          items:
+            type: string
+        examples:
+          type: array
+          items:
+            type: string
+        documentation_path:
+          type: string
+      example:
+        id: 'screenplay-writer-v1'
+        name: 'screenplay-writer'
+        description: 'Converts text input into industry-standard formatted screenplay text. Uses a single LLM-powered agent to generate screenplay scenes with proper formatting including scene headers, action lines, character names, and dialogue.'
+        version: '1.0.0'
+        tags: ['screenplay', 'scriptwriting', 'formatting', 'dialogue', 'scene-writing']
+        input_modes: ['text/plain']
+        output_modes: ['text/plain']
+        examples:
+          - 'Write an opening scene for a sci-fi thriller set in 2045'
+          - 'Create a courtroom drama scene with two lawyers arguing'
+          - 'Write a meet-cute scene for a romantic comedy'
+        documentation_path: 'screenplay_writer_agent/skills/screenplay-writer/skill.yaml'
+
+    SkillDetail:
+      allOf:
+        - $ref: '#/components/schemas/SkillSummary'
+        - type: object
+          properties:
+            author:
+              type: string
+            capabilities_detail:
+              type: object
+              properties:
+                primary_capability:
+                  type: object
+                  properties:
+                    supported:
+                      type: boolean
+                    description:
+                      type: string
+                    features:
+                      type: array
+                      items:
+                        type: string
+                    limitations:
+                      type: string
+                secondary_capability:
+                  type: object
+                  properties:
+                    supported:
+                      type: boolean
+                    description:
+                      type: string
+            requirements:
+              type: object
+              properties:
+                packages:
+                  type: array
+                  items:
+                    type: string
+                system:
+                  type: array
+                  items:
+                    type: string
+                min_memory_mb:
+                  type: integer
+            performance:
+              type: object
+              properties:
+                avg_processing_time_ms:
+                  type: integer
+                agents_in_crew:
+                  type: integer
+                max_concurrent_requests:
+                  type: integer
+                memory_per_request_mb:
+                  type: integer
+                scalability:
+                  type: string
+            allowed_tools:
+              type: array
+              items:
+                type: string
+            documentation:
+              type: object
+              properties:
+                overview:
+                  type: string
+                use_cases:
+                  type: object
+                  properties:
+                    when_to_use:
+                      type: array
+                      items:
+                        type: string
+                    when_not_to_use:
+                      type: array
+                      items:
+                        type: string
+                input_structure:
+                  type: string
+                output_format:
+                  type: string
+                error_handling:
+                  type: array
+                  items:
+                    type: string
+                examples:
+                  type: array
+                  items:
+                    type: object
+                best_practices:
+                  type: object
+                installation:
+                  type: string
+                versioning:
+                  type: array
+                  items:
+                    type: object
+            assessment:
+              type: object
+              properties:
+                keywords:
+                  type: array
+                  items:
+                    type: string
+                specializations:
+                  type: array
+                  items:
+                    type: object
+                anti_patterns:
+                  type: array
+                  items:
+                    type: string
+                complexity_indicators:
+                  type: object
+            has_documentation:
+              type: boolean
+      example:
+        id: 'screenplay-writer-v1'
+        name: 'screenplay-writer'
+        description: 'Converts text input into industry-standard formatted screenplay text.'
+        tags: ['screenplay', 'scriptwriting', 'formatting', 'dialogue', 'scene-writing']
+        input_modes: ['text/plain']
+        output_modes: ['text/plain']
+        version: '1.0.0'
+        author: 'paras@getbindu.com'
+        examples:
+          - 'Write an opening scene for a sci-fi thriller set in 2045'
+          - 'Create a courtroom drama scene with two lawyers arguing'
+        capabilities_detail:
+          primary_capability:
+            supported: true
+            description: 'Generates formatted screenplay text from text prompts'
+            features:
+              - 'Generates screenplay scenes with FADE IN/FADE OUT'
+              - 'Formats scene headers (INT./EXT. LOCATION - TIME)'
+              - 'Centers character names in all caps'
+              - 'Indents dialogue properly'
+              - 'Includes action descriptions and parentheticals'
+              - 'Enforces industry-standard screenplay formatting'
+            limitations: 'Text output only; no character analysis, quality scoring, or structured metadata'
+          secondary_capability:
+            supported: false
+            description: 'Not supported by code'
+        requirements:
+          packages:
+            - 'crewai>=0.80.0'
+            - 'bindu==2026.1.12'
+            - 'python-dotenv>=1.0.1'
+          system: []
+          min_memory_mb: 256
+        performance:
+          avg_processing_time_ms: 15000
+          agents_in_crew: 1
+          max_concurrent_requests: 1
+          memory_per_request_mb: 256
+          scalability: 'vertical'
+        allowed_tools:
+          - 'Write'
+          - 'Format'
+        documentation:
+          overview: 'Converts text prompts into formatted screenplay text. Uses a single CrewAI agent with LLM (OpenAI or OpenRouter) to generate screenplay scenes. Post-processes output with strict formatting enforcement to ensure industry-standard screenplay format.'
+          use_cases:
+            when_to_use:
+              - 'Generate screenplay scenes from text prompts'
+              - 'Convert story ideas into formatted screenplay text'
+              - 'Create dialogue-based scenes with proper formatting'
+              - 'Generate screenplay snippets for specific scenarios'
+            when_not_to_use:
+              - 'Character analysis or development'
+              - 'Quality scoring or evaluation'
+              - 'Structured JSON output with metadata'
+              - 'Multi-format screenplay export'
+              - 'Script revision or editing existing screenplays'
+          input_structure: |
+            Accepts plain text prompts describing the screenplay scene to generate.
+            Input is extracted from message list with role="user".
+
+            Example:
+            "Write an opening scene for a sci-fi thriller set in 2045 where artificial intelligence controls the global power grid."
+          output_format: |
+            Returns plain text formatted screenplay following industry standards:
+
+            Output Structure:
+            - FADE IN:
+            - Scene headers: INT./EXT. LOCATION - TIME (all caps)
+            - Action descriptions (present tense, short lines)
+            - Character names (centered, all caps)
+            - Dialogue (indented under character names)
+            - Parentheticals (indented, in parentheses)
+            - FADE OUT.
+
+            No metadata, no analysis, no character profiles, no quality scores.
+          error_handling:
+            - 'Invalid messages format: Returns formatted error screenplay'
+            - 'No user input: Returns default screenplay requesting story idea'
+            - 'Crew initialization failed: Returns error screenplay'
+            - 'LLM execution error: Returns error screenplay with error message'
+            - 'All errors return valid screenplay format (FADE IN/FADE OUT)'
+          examples:
+            - title: 'Sci-Fi Thriller Opening Scene'
+              input:
+                text: 'Write an opening scene for a sci-fi thriller set in 2045 where artificial intelligence controls the global power grid. Include character dialogue and standard screenplay formatting.'
+              output:
+                text: "FADE IN:\n\nINT. CONTROL ROOM - NIGHT\n\nRows of monitors flicker with data..."
+          best_practices:
+            for_developers:
+              - 'Provide clear, specific scene descriptions in prompts'
+              - 'Include genre and tone context in the prompt text'
+              - 'Expect plain text output only, no structured data'
+              - 'Handle async initialization (lazy loading on first request)'
+            for_orchestrators:
+              - 'Route screenplay scene generation requests to this agent'
+              - 'Do not expect character analysis or quality scoring'
+              - 'Output is always plain text screenplay format'
+              - 'Single agent crew with sequential processing'
+          installation: |
+            Required packages:
+            pip install crewai bindu python-dotenv
+
+            Environment variables:
+            OPENROUTER_API_KEY=your_openrouter_api_key  # Required (or OPENAI_API_KEY)
+            OPENAI_API_KEY=your_openai_api_key  # Alternative to OpenRouter
+            MODEL_NAME=openai/gpt-4o  # Optional, defaults to openai/gpt-4o
+          versioning:
+            - version: '1.0.0'
+              date: '2026-01-14'
+              changes: 'Initial release with single-agent screenplay formatter'
+        assessment:
+          keywords:
+            - 'screenplay'
+            - 'script'
+            - 'scene'
+            - 'dialogue'
+            - 'formatting'
+            - 'film'
+            - 'movie'
+            - 'scriptwriting'
+          specializations:
+            - domain: 'screenplay_formatting'
+              confidence_boost: 0.5
+            - domain: 'scene_writing'
+              confidence_boost: 0.3
+          anti_patterns:
+            - 'character analysis'
+            - 'quality scoring'
+            - 'script evaluation'
+            - 'editing existing scripts'
+          complexity_indicators:
+            simple:
+              - 'write scene'
+              - 'format screenplay'
+              - 'generate dialogue'
+            medium:
+              - 'multi-scene screenplay'
+              - 'genre-specific scene'
+            complex:
+              - 'full screenplay'
+              - 'complex multi-character scenes'
+        has_documentation: true
+
+    # ----- Negotiation -----
+    NegotiationRequest:
+      type: object
+      required:
+        - task_summary
+      properties:
+        task_summary:
+          type: string
+          maxLength: 10000
+        task_details:
+          type: string
+        input_mime_types:
+          type: array
+          items:
+            type: string
+        output_mime_types:
+          type: array
+          items:
+            type: string
+        max_latency_ms:
+          type: integer
+        max_cost_amount:
+          type: number
+          format: float
+        required_tools:
+          type: array
+          items:
+            type: string
+        forbidden_tools:
+          type: array
+          items:
+            type: string
+        min_score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        weights:
+          type: object
+          properties:
+            skill_match:
+              type: number
+              format: float
+            io_compatibility:
+              type: number
+              format: float
+            performance:
+              type: number
+              format: float
+            load:
+              type: number
+              format: float
+            cost:
+              type: number
+              format: float
+      example:
+        task_summary: 'Write a screenplay scene for a detective story'
+        task_details: 'User needs a formatted screenplay scene with dialogue and action'
+        input_mime_types: ['text/plain']
+        output_mime_types: ['text/plain']
+        max_latency_ms: 20000
+        max_cost_amount: 0.01
+        required_tools: []
+        forbidden_tools: []
+        min_score: 0.5
+        weights:
+          skill_match: 0.55
+          io_compatibility: 0.20
+          performance: 0.15
+          load: 0.05
+          cost: 0.05
+    NegotiationResponse:
+      type: object
+      properties:
+        accepted:
+          type: boolean
+        score:
+          type: number
+          format: float
+        confidence:
+          type: number
+          format: float
+        rejection_reason:
+          type: string
+        queue_depth:
+          type: integer
+        subscores:
+          type: object
+          properties:
+            skill_match:
+              type: number
+              format: float
+            io_compatibility:
+              type: number
+              format: float
+            load:
+              type: number
+              format: float
+            cost:
+              type: number
+              format: float
+      example:
+        accepted: true
+        score: 0.85
+        confidence: 0.9
+        rejection_reason: null
+        queue_depth: 0
+        subscores:
+          skill_match: 0.9
+          io_compatibility: 1.0
+          load: 1.0
+          cost: 1.0
+
+    # ----- Payment -----
+    PaymentSession:
+      type: object
+      properties:
+        sessionId:
+          type: string
+        requirements:
+          type: object
+        url:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+    PaymentStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, completed, failed]
+        paymentToken:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+
+    # ----- Health -----
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, error]
+        ready:
+          type: boolean
+        uptime_seconds:
+          type: number
+        version:
+          type: string
+        health:
+          type: string
+        runtime:
+          type: object
+          properties:
+            storage_backend:
+              type: string
+            scheduler_backend:
+              type: string
+            task_manager_running:
+              type: boolean
+            strict_ready:
+              type: boolean
+        application:
+          type: object
+          properties:
+            penguin_id:
+              type: string
+            agent_did:
+              type: string
+        system:
+          type: object
+          properties:
+            python_version:
+              type: string
+            platform:
+              type: string
+            platform_release:
+              type: string
+            environment:
+              type: string
+      example:
+        status: 'ok'
+        ready: true
+        uptime_seconds: 31.43
+        version: '2026.9.2.2'
+        health: 'healthy'
+        runtime:
+          storage_backend: 'PostgresStorage'
+          scheduler_backend: 'RedisScheduler'
+          task_manager_running: true
+          strict_ready: true
+        application:
+          penguin_id: 'screenplay-writer-agent-id'
+          agent_did: 'did:bindu:screenplay-writer-agent:abc123'
+        system:
+          python_version: '3.12.12'
+          platform: 'Linux'
+          platform_release: '6.8.0-90-generic'
+          environment: 'development'
