@@ -2,9 +2,9 @@ openapi: 3.1.0
 info:
   title: Screenplay Writer Agent API
   description: |
-    An AI-powered screenplay writing agent that converts text prompts into industry-standard 
-    formatted screenplay text. Generates screenplay scenes with proper formatting including 
-    scene headers, action lines, character names, and dialogue following Hollywood screenplay 
+    An AI-powered screenplay writing agent that converts text prompts into industry-standard
+    formatted screenplay text. Generates screenplay scenes with proper formatting including
+    scene headers, action lines, character names, and dialogue following Hollywood screenplay
     conventions.
 
     Implements the A2A Protocol with JSON-RPC 2.0 methods for agent communication, task
